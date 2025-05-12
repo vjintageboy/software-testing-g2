@@ -1,3 +1,4 @@
+[Link Web Pulic](https://vjintageboy.github.io/software-testing-g2/?fbclid=IwZXh0bgNhZW0CMTEAAR4kdbqePu4txXnG8gtX4Ny_qsdHzr7UgKcSVeuTgnlH656DqhngMRqFQ5lRwA_aem_xITQ5LlDpBxpPGmpO0BJkg))
 # BÁO CÁO KẾT QUẢ THỰC HIỆN CHỨC NĂNG 1: QUẢN LÝ BẰNG CẤP
 
 **Môn học/Dự án:** Đánh giá và kiểm định chất lượng phần mềm - 1-3-24(N01.TH7)
