@@ -82,6 +82,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 departmentId: 'DEPT003',
                 degreeId: 'DEG003'
             }
+        ],
+        courses: [
+            { id: 'HP001', name: 'Lập trình Cơ bản', credits: 3, coefficient: 1.0, periods: 45 },
+            { id: 'HP002', name: 'Cơ sở Dữ liệu', credits: 3, coefficient: 1.2, periods: 45 },
+            { id: 'HP003', name: 'Mạng máy tính', credits: 2, coefficient: 1.1, periods: 30 }
+        ],
+        semesters: [
+            { id: 'HK20231', name: 'Học kỳ 1', year: '2023-2024', startDate: '2023-09-01', endDate: '2024-01-15' },
+            { id: 'HK20232', name: 'Học kỳ 2', year: '2023-2024', startDate: '2024-02-01', endDate: '2024-06-15' }
+        ],
+        classSections: [
+            { id: 'LHP001', semesterId: 'HK20231', courseId: 'HP001', code: '21CLC1', name: 'Lập trình Cơ bản 1', studentCount: 50 },
+            { id: 'LHP002', semesterId: 'HK20231', courseId: 'HP002', code: '21CLC2', name: 'Cơ sở Dữ liệu 1', studentCount: 45 }
+        ],
+        assignments: [
+            { id: 'PC001', classSectionId: 'LHP001', teacherId: 'GV001' },
+            { id: 'PC002', classSectionId: 'LHP002', teacherId: 'GV002' }
         ]
     };
 
@@ -142,50 +159,53 @@ document.addEventListener('DOMContentLoaded', () => {
                 const formData = new FormData(form);
                 const data = Object.fromEntries(formData.entries());
                 
+                let prefix, dataKey;
+                switch (currentSection) {
+                    case 'Bằng cấp':
+                        prefix = 'DEG'; dataKey = 'degrees'; break;
+                    case 'Khoa':
+                        prefix = 'DEPT'; dataKey = 'departments'; break;
+                    case 'Giáo viên':
+                        prefix = 'GV'; dataKey = 'teachers'; break;
+                    case 'Học phần':
+                        prefix = 'HP'; dataKey = 'courses'; break;
+                    case 'Kì học':
+                        prefix = 'HK'; dataKey = 'semesters'; break;
+                    case 'Lớp học phần':
+                        prefix = 'LHP'; dataKey = 'classSections'; break;
+                    case 'Phân công giảng viên':
+                        prefix = 'PC'; dataKey = 'assignments'; break;
+                    default:
+                        prefix = ''; dataKey = '';
+                }
                 if (currentAction === 'add') {
                     // Generate new ID
-                    const prefix = currentSection === 'Bằng cấp' ? 'DEG' : 
-                                 currentSection === 'Khoa' ? 'DEPT' : 'GV';
-                    const existingIds = sampleData[currentSection === 'Bằng cấp' ? 'degrees' : 
-                                                 currentSection === 'Khoa' ? 'departments' : 'teachers']
-                        .map(item => item.id);
+                    const existingIds = sampleData[dataKey].map(item => item.id);
                     data.id = generateId(prefix, existingIds);
-                    
-                    // Add to sample data
-                    sampleData[currentSection === 'Bằng cấp' ? 'degrees' : 
-                             currentSection === 'Khoa' ? 'departments' : 'teachers'].push(data);
+                    // Đặc biệt cho lớp học phần: nếu chưa có code thì tự sinh
+                    if (dataKey === 'classSections' && !data.code) {
+                        data.code = data.id;
+                    }
+                    sampleData[dataKey].push(data);
                 } else if (currentAction === 'edit') {
-                    // Update existing item
-                    const index = sampleData[currentSection === 'Bằng cấp' ? 'degrees' : 
-                                          currentSection === 'Khoa' ? 'departments' : 'teachers']
-                        .findIndex(item => item.id === currentItem.id);
+                    const index = sampleData[dataKey].findIndex(item => item.id === currentItem.id);
                     if (index !== -1) {
-                        sampleData[currentSection === 'Bằng cấp' ? 'degrees' : 
-                                currentSection === 'Khoa' ? 'departments' : 'teachers'][index] = {
-                            ...currentItem,
-                            ...data
-                        };
+                        sampleData[dataKey][index] = { ...currentItem, ...data };
                     }
                 }
-                
                 showToast(`${currentAction === 'add' ? 'Thêm mới' : 'Cập nhật'} thành công!`, 'success');
                 hideModal();
-                switchContent(currentSection); // Refresh content
+                switchContent(currentSection);
             });
         }
-        
         if (cancelButton) {
             cancelButton.addEventListener('click', hideModal);
         }
-
-        // Close modal when clicking outside
         modal.addEventListener('click', (e) => {
             if (e.target === modal) {
                 hideModal();
             }
         });
-
-        // Close modal when pressing Escape key
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
                 hideModal();
@@ -375,11 +395,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 </table>
             </div>
         `,
-        'Thống kê': () => {
+        'Thống kê giáo viên': () => {
             // Calculate statistics
             const teacherCountByDept = {};
             const teacherCountByDegree = {};
             const retirementTeachers = [];
+            const ageDistribution = {
+                'Dưới 30': 0,
+                '30-39': 0,
+                '40-49': 0,
+                '50-59': 0,
+                'Trên 60': 0
+            };
+            let totalAge = 0;
 
             sampleData.teachers.forEach(teacher => {
                 // Count by department
@@ -394,9 +422,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     teacherCountByDegree[degree.fullName] = (teacherCountByDegree[degree.fullName] || 0) + 1;
                 }
 
-                // Check retirement
+                // Calculate age and distribution
                 const birthDate = new Date(teacher.birthDate);
                 const age = new Date().getFullYear() - birthDate.getFullYear();
+                totalAge += age;
+
+                // Update age distribution
+                if (age < 30) ageDistribution['Dưới 30']++;
+                else if (age < 40) ageDistribution['30-39']++;
+                else if (age < 50) ageDistribution['40-49']++;
+                else if (age < 60) ageDistribution['50-59']++;
+                else ageDistribution['Trên 60']++;
+
+                // Check retirement
                 if (age >= 60) {
                     const yearsToRetirement = 65 - age;
                     if (yearsToRetirement <= 5) {
@@ -408,10 +446,41 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
 
+            const averageAge = Math.round(totalAge / sampleData.teachers.length);
+
             return `
                 <div class="mb-6">
                     <h2 class="text-2xl font-bold text-gray-800">Thống kê Giáo viên</h2>
                 </div>
+
+                <!-- Filters -->
+                <div class="bg-white p-4 rounded-lg shadow-md mb-6">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <select id="deptFilter" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:border-blue-500">
+                                <option value="">Tất cả các khoa</option>
+                                ${sampleData.departments.map(dept => `
+                                    <option value="${dept.id}">${dept.fullName}</option>
+                                `).join('')}
+                            </select>
+                        </div>
+                        <div>
+                            <select id="degreeFilter" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:border-blue-500">
+                                <option value="">Tất cả các bằng cấp</option>
+                                ${sampleData.degrees.map(degree => `
+                                    <option value="${degree.id}">${degree.fullName}</option>
+                                `).join('')}
+                            </select>
+                        </div>
+                        <div>
+                            <button id="applyFilter" class="w-full bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition-colors">
+                                <i class="fas fa-filter mr-2"></i>Áp dụng bộ lọc
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Statistics Overview -->
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                     <div class="bg-white p-6 rounded-lg shadow-md">
                         <h3 class="text-lg font-semibold mb-4">Số lượng giáo viên theo Khoa</h3>
@@ -436,33 +505,348 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                     </div>
                 </div>
-                <div class="bg-white p-6 rounded-lg shadow-md">
-                    <h3 class="text-lg font-semibold mb-4">Danh sách giáo viên sắp đến tuổi nghỉ hưu</h3>
-                    <table class="min-w-full">
-                        <thead class="bg-gray-50">
-                            <tr>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">STT</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Họ tên</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ngày sinh</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Khoa</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Thời gian còn lại</th>
-                            </tr>
-                        </thead>
-                        <tbody class="bg-white divide-y divide-gray-200">
-                            ${retirementTeachers.map((teacher, index) => {
-                                const dept = sampleData.departments.find(d => d.id === teacher.departmentId);
-                                return `
+
+                <!-- Age Statistics -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                    <div class="bg-white p-6 rounded-lg shadow-md">
+                        <h3 class="text-lg font-semibold mb-4">Thống kê độ tuổi</h3>
+                        <div class="mb-4">
+                            <p class="text-gray-600">Độ tuổi trung bình: <span class="font-semibold">${averageAge} tuổi</span></p>
+                        </div>
+                        <div class="space-y-4">
+                            ${Object.entries(ageDistribution).map(([range, count]) => `
+                                <div class="flex justify-between items-center">
+                                    <span class="text-gray-600">${range}</span>
+                                    <span class="font-semibold">${count} giáo viên</span>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                    <div class="bg-white p-6 rounded-lg shadow-md">
+                        <h3 class="text-lg font-semibold mb-4">Danh sách giáo viên sắp đến tuổi nghỉ hưu</h3>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full">
+                                <thead class="bg-gray-50">
                                     <tr>
-                                        <td class="px-6 py-4">${index + 1}</td>
-                                        <td class="px-6 py-4">${teacher.fullName}</td>
-                                        <td class="px-6 py-4">${new Date(teacher.birthDate).toLocaleDateString('vi-VN')}</td>
-                                        <td class="px-6 py-4">${dept ? dept.fullName : ''}</td>
-                                        <td class="px-6 py-4">${teacher.yearsToRetirement} năm</td>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">STT</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Họ tên</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ngày sinh</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Khoa</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Thời gian còn lại</th>
                                     </tr>
-                                `;
-                            }).join('')}
-                        </tbody>
-                    </table>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200">
+                                    ${retirementTeachers.map((teacher, index) => {
+                                        const dept = sampleData.departments.find(d => d.id === teacher.departmentId);
+                                        return `
+                                            <tr>
+                                                <td class="px-6 py-4">${index + 1}</td>
+                                                <td class="px-6 py-4">${teacher.fullName}</td>
+                                                <td class="px-6 py-4">${new Date(teacher.birthDate).toLocaleDateString('vi-VN')}</td>
+                                                <td class="px-6 py-4">${dept ? dept.fullName : ''}</td>
+                                                <td class="px-6 py-4">${teacher.yearsToRetirement} năm</td>
+                                            </tr>
+                                        `;
+                                    }).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Export Buttons -->
+                <div class="flex justify-end gap-4 mb-6">
+                    <button class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 transition-colors">
+                        <i class="fas fa-file-excel mr-2"></i>Xuất Excel
+                    </button>
+                    <button class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 transition-colors">
+                        <i class="fas fa-file-pdf mr-2"></i>Xuất PDF
+                    </button>
+                </div>
+            `;
+        },
+        'Học phần': () => `
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold text-gray-800">Danh sách Học phần</h2>
+                <button class="bg-blue-500 text-white px-4 py-2 rounded">
+                    <i class="fas fa-plus mr-2"></i>Thêm mới
+                </button>
+            </div>
+            <div class="bg-white p-4 rounded-lg shadow-md mb-6">
+                <div class="flex gap-4">
+                    <div class="flex-1">
+                        <input type="text" placeholder="Tìm kiếm..." class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:border-blue-500">
+                    </div>
+                    <button class="bg-gray-100 px-4 py-2 rounded">
+                        <i class="fas fa-search"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="bg-white rounded-lg shadow-md overflow-hidden">
+                <table class="min-w-full">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mã số</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tên học phần</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Số tín chỉ</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hệ số</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Số tiết</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hành động</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        ${sampleData.courses.map(course => `
+                            <tr>
+                                <td class="px-6 py-4 whitespace-nowrap">${course.id}</td>
+                                <td class="px-6 py-4">${course.name}</td>
+                                <td class="px-6 py-4">${course.credits}</td>
+                                <td class="px-6 py-4">${course.coefficient}</td>
+                                <td class="px-6 py-4">${course.periods}</td>
+                                <td class="px-6 py-4">
+                                    <button type="button" class="view-btn text-blue-500 mr-3" data-id="${course.id}"><i class="fas fa-eye"></i></button>
+                                    <button type="button" class="edit-btn text-blue-500 mr-3" data-id="${course.id}"><i class="fas fa-edit"></i></button>
+                                    <button type="button" class="delete-btn text-red-500" data-id="${course.id}"><i class="fas fa-trash"></i></button>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
+        `,
+        'Kì học': () => `
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold text-gray-800">Danh sách Kì học</h2>
+                <button class="bg-blue-500 text-white px-4 py-2 rounded">
+                    <i class="fas fa-plus mr-2"></i>Thêm mới
+                </button>
+            </div>
+            <div class="bg-white p-4 rounded-lg shadow-md mb-6">
+                <div class="flex gap-4">
+                    <div class="flex-1">
+                        <input type="text" placeholder="Tìm kiếm..." class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:border-blue-500">
+                    </div>
+                    <button class="bg-gray-100 px-4 py-2 rounded">
+                        <i class="fas fa-search"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="bg-white rounded-lg shadow-md overflow-hidden">
+                <table class="min-w-full">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tên kì</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Năm học</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ngày bắt đầu</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ngày kết thúc</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hành động</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        ${sampleData.semesters.map(sem => `
+                            <tr>
+                                <td class="px-6 py-4 whitespace-nowrap">${sem.name}</td>
+                                <td class="px-6 py-4">${sem.year}</td>
+                                <td class="px-6 py-4">${sem.startDate}</td>
+                                <td class="px-6 py-4">${sem.endDate}</td>
+                                <td class="px-6 py-4">
+                                    <button type="button" class="view-btn text-blue-500 mr-3" data-id="${sem.id}"><i class="fas fa-eye"></i></button>
+                                    <button type="button" class="edit-btn text-blue-500 mr-3" data-id="${sem.id}"><i class="fas fa-edit"></i></button>
+                                    <button type="button" class="delete-btn text-red-500" data-id="${sem.id}"><i class="fas fa-trash"></i></button>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
+        `,
+        'Lớp học phần': () => `
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold text-gray-800">Danh sách Lớp học phần</h2>
+                <button class="bg-blue-500 text-white px-4 py-2 rounded">
+                    <i class="fas fa-plus mr-2"></i>Thêm mới
+                </button>
+            </div>
+            <div class="bg-white p-4 rounded-lg shadow-md mb-6">
+                <div class="flex gap-4">
+                    <div class="flex-1">
+                        <input type="text" placeholder="Tìm kiếm..." class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:border-blue-500">
+                    </div>
+                    <button class="bg-gray-100 px-4 py-2 rounded">
+                        <i class="fas fa-search"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="bg-white rounded-lg shadow-md overflow-hidden">
+                <table class="min-w-full">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mã lớp</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tên lớp</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Kì học</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Học phần</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Số SV</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hành động</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        ${sampleData.classSections.map(cls => {
+                            const sem = sampleData.semesters.find(s => s.id === cls.semesterId);
+                            const course = sampleData.courses.find(c => c.id === cls.courseId);
+                            return `
+                                <tr>
+                                    <td class="px-6 py-4 whitespace-nowrap">${cls.code}</td>
+                                    <td class="px-6 py-4">${cls.name}</td>
+                                    <td class="px-6 py-4">${sem ? sem.name + ' ' + sem.year : ''}</td>
+                                    <td class="px-6 py-4">${course ? course.name : ''}</td>
+                                    <td class="px-6 py-4">${cls.studentCount}</td>
+                                    <td class="px-6 py-4">
+                                        <button type="button" class="view-btn text-blue-500 mr-3" data-id="${cls.id}"><i class="fas fa-eye"></i></button>
+                                        <button type="button" class="edit-btn text-blue-500 mr-3" data-id="${cls.id}"><i class="fas fa-edit"></i></button>
+                                        <button type="button" class="delete-btn text-red-500" data-id="${cls.id}"><i class="fas fa-trash"></i></button>
+                                    </td>
+                                </tr>
+                            `;
+                        }).join('')}
+                    </tbody>
+                </table>
+            </div>
+        `,
+        'Phân công giảng viên': () => `
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold text-gray-800">Phân công giảng viên</h2>
+                <button class="bg-blue-500 text-white px-4 py-2 rounded">
+                    <i class="fas fa-plus mr-2"></i>Thêm mới
+                </button>
+            </div>
+            <div class="bg-white p-4 rounded-lg shadow-md mb-6">
+                <div class="flex gap-4">
+                    <div class="flex-1">
+                        <input type="text" placeholder="Tìm kiếm..." class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:border-blue-500">
+                    </div>
+                    <button class="bg-gray-100 px-4 py-2 rounded">
+                        <i class="fas fa-search"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="bg-white rounded-lg shadow-md overflow-hidden">
+                <table class="min-w-full">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Lớp học phần</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Giảng viên</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hành động</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        ${sampleData.assignments.map(assign => {
+                            const cls = sampleData.classSections.find(c => c.id === assign.classSectionId);
+                            const teacher = sampleData.teachers.find(t => t.id === assign.teacherId);
+                            return `
+                                <tr>
+                                    <td class="px-6 py-4">${cls ? cls.name : ''}</td>
+                                    <td class="px-6 py-4">${teacher ? teacher.fullName : ''}</td>
+                                    <td class="px-6 py-4">
+                                        <button type="button" class="view-btn text-blue-500 mr-3" data-id="${assign.id}"><i class="fas fa-eye"></i></button>
+                                        <button type="button" class="edit-btn text-blue-500 mr-3" data-id="${assign.id}"><i class="fas fa-edit"></i></button>
+                                        <button type="button" class="delete-btn text-red-500" data-id="${assign.id}"><i class="fas fa-trash"></i></button>
+                                    </td>
+                                </tr>
+                            `;
+                        }).join('')}
+                    </tbody>
+                </table>
+            </div>
+        `,
+        'Thống kê lớp mở': () => {
+            // Get unique academic years from semesters
+            const academicYears = [...new Set(sampleData.semesters.map(sem => sem.year))];
+            
+            // Get departments that manage courses
+            const departments = sampleData.departments;
+
+            return `
+                <div class="mb-6">
+                    <h2 class="text-2xl font-bold text-gray-800">Thống kê số lớp mở cho các học phần trong năm học</h2>
+                </div>
+
+                <!-- Filters -->
+                <div class="bg-white p-4 rounded-lg shadow-md mb-6">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Năm học</label>
+                            <select id="academicYearFilter" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:border-blue-500">
+                                <option value="">Chọn năm học</option>
+                                ${academicYears.map(year => `
+                                    <option value="${year}">${year}</option>
+                                `).join('')}
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Khoa/Bộ môn</label>
+                            <select id="departmentFilter" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:border-blue-500">
+                                <option value="">Tất cả các khoa</option>
+                                ${departments.map(dept => `
+                                    <option value="${dept.id}">${dept.fullName}</option>
+                                `).join('')}
+                            </select>
+                        </div>
+                        <div class="flex items-end">
+                            <button id="applyFilter" class="w-full bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition-colors">
+                                <i class="fas fa-filter mr-2"></i>Áp dụng bộ lọc
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Statistics Table -->
+                <div class="bg-white rounded-lg shadow-md overflow-hidden mb-6">
+                    <div class="p-4 border-b">
+                        <div class="flex justify-between items-center">
+                            <h3 class="text-lg font-semibold">Danh sách lớp học phần</h3>
+                            <div class="flex gap-2">
+                                <button class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 transition-colors">
+                                    <i class="fas fa-file-excel mr-2"></i>Xuất Excel
+                                </button>
+                                <button class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 transition-colors">
+                                    <i class="fas fa-file-pdf mr-2"></i>Xuất PDF
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">
+                                        STT
+                                    </th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">
+                                        Mã học phần
+                                    </th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">
+                                        Tên học phần
+                                    </th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">
+                                        Số lớp đã mở
+                                    </th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">
+                                        Tổng số sinh viên
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200" id="statisticsTableBody">
+                                <!-- Data will be populated dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Chart Section -->
+                <div class="bg-white rounded-lg shadow-md p-6">
+                    <h3 class="text-lg font-semibold mb-4">Biểu đồ top học phần có nhiều lớp mở nhất</h3>
+                    <div class="h-80" id="statisticsChart">
+                        <!-- Chart will be rendered here -->
+                    </div>
                 </div>
             `;
         }
@@ -620,6 +1004,140 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                 ` : ''}
             </form>
+        `,
+        'Học phần': (title, action, item) => `
+            <h3 class="text-xl font-bold mb-4">${title} Học phần</h3>
+            <form>
+                ${action === 'view' ? `
+                    <div class="mb-4">
+                        <label class="block text-gray-700 text-sm font-bold mb-2">Mã số</label>
+                        <div class="px-3 py-2 bg-gray-50 rounded-lg">${item.id}</div>
+                    </div>
+                ` : ''}
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2">Tên học phần <span class="text-red-500">*</span></label>
+                    <input type="text" name="name" value="${item ? item.name : ''}" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500" ${action === 'view' ? 'disabled' : 'required'}>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2">Số tín chỉ <span class="text-red-500">*</span></label>
+                    <input type="number" name="credits" value="${item ? item.credits : ''}" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500" ${action === 'view' ? 'disabled' : 'required'}>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2">Hệ số học phần</label>
+                    <input type="number" step="0.01" name="coefficient" value="${item ? item.coefficient : ''}" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500" ${action === 'view' ? 'disabled' : ''}>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2">Số tiết</label>
+                    <input type="number" name="periods" value="${item ? item.periods : ''}" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500" ${action === 'view' ? 'disabled' : ''}>
+                </div>
+                ${action !== 'view' ? `
+                    <div class="flex justify-end gap-2">
+                        <button type="button" class="px-4 py-2 border rounded">Hủy</button>
+                        <button type="submit" class="px-4 py-2 bg-blue-500 text-white rounded">Lưu</button>
+                    </div>
+                ` : ''}
+            </form>
+        `,
+        'Kì học': (title, action, item) => `
+            <h3 class="text-xl font-bold mb-4">${title} Kì học</h3>
+            <form>
+                ${action === 'view' ? `
+                    <div class="mb-4">
+                        <label class="block text-gray-700 text-sm font-bold mb-2">Mã kì</label>
+                        <div class="px-3 py-2 bg-gray-50 rounded-lg">${item.id}</div>
+                    </div>
+                ` : ''}
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2">Tên kì <span class="text-red-500">*</span></label>
+                    <input type="text" name="name" value="${item ? item.name : ''}" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500" ${action === 'view' ? 'disabled' : 'required'}>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2">Năm học <span class="text-red-500">*</span></label>
+                    <input type="text" name="year" value="${item ? item.year : ''}" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500" ${action === 'view' ? 'disabled' : 'required'}>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2">Ngày bắt đầu</label>
+                    <input type="date" name="startDate" value="${item ? item.startDate : ''}" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500" ${action === 'view' ? 'disabled' : ''}>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2">Ngày kết thúc</label>
+                    <input type="date" name="endDate" value="${item ? item.endDate : ''}" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500" ${action === 'view' ? 'disabled' : ''}>
+                </div>
+                ${action !== 'view' ? `
+                    <div class="flex justify-end gap-2">
+                        <button type="button" class="px-4 py-2 border rounded">Hủy</button>
+                        <button type="submit" class="px-4 py-2 bg-blue-500 text-white rounded">Lưu</button>
+                    </div>
+                ` : ''}
+            </form>
+        `,
+        'Lớp học phần': (title, action, item) => `
+            <h3 class="text-xl font-bold mb-4">${title} Lớp học phần</h3>
+            <form>
+                ${action === 'view' ? `
+                    <div class="mb-4">
+                        <label class="block text-gray-700 text-sm font-bold mb-2">Mã lớp</label>
+                        <div class="px-3 py-2 bg-gray-50 rounded-lg">${item.code}</div>
+                    </div>
+                ` : ''}
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2">Tên lớp <span class="text-red-500">*</span></label>
+                    <input type="text" name="name" value="${item ? item.name : ''}" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500" ${action === 'view' ? 'disabled' : 'required'}>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2">Kì học <span class="text-red-500">*</span></label>
+                    <select name="semesterId" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500" ${action === 'view' ? 'disabled' : 'required'}>
+                        <option value="">Chọn kì học</option>
+                        ${sampleData.semesters.map(sem => `<option value="${sem.id}" ${item && item.semesterId === sem.id ? 'selected' : ''}>${sem.name} ${sem.year}</option>`).join('')}
+                    </select>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2">Học phần <span class="text-red-500">*</span></label>
+                    <select name="courseId" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500" ${action === 'view' ? 'disabled' : 'required'}>
+                        <option value="">Chọn học phần</option>
+                        ${sampleData.courses.map(course => `<option value="${course.id}" ${item && item.courseId === course.id ? 'selected' : ''}>${course.name}</option>`).join('')}
+                    </select>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2">Mã lớp</label>
+                    <input type="text" name="code" value="${item ? item.code : ''}" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500" ${action === 'view' ? 'disabled' : ''}>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2">Số sinh viên</label>
+                    <input type="number" name="studentCount" value="${item ? item.studentCount : ''}" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500" ${action === 'view' ? 'disabled' : ''}>
+                </div>
+                ${action !== 'view' ? `
+                    <div class="flex justify-end gap-2">
+                        <button type="button" class="px-4 py-2 border rounded">Hủy</button>
+                        <button type="submit" class="px-4 py-2 bg-blue-500 text-white rounded">Lưu</button>
+                    </div>
+                ` : ''}
+            </form>
+        `,
+        'Phân công giảng viên': (title, action, item) => `
+            <h3 class="text-xl font-bold mb-4">${title} Phân công giảng viên</h3>
+            <form>
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2">Lớp học phần <span class="text-red-500">*</span></label>
+                    <select name="classSectionId" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500" ${action === 'view' ? 'disabled' : 'required'}>
+                        <option value="">Chọn lớp học phần</option>
+                        ${sampleData.classSections.map(cls => `<option value="${cls.id}" ${item && item.classSectionId === cls.id ? 'selected' : ''}>${cls.name}</option>`).join('')}
+                    </select>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2">Giảng viên <span class="text-red-500">*</span></label>
+                    <select name="teacherId" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500" ${action === 'view' ? 'disabled' : 'required'}>
+                        <option value="">Chọn giảng viên</option>
+                        ${sampleData.teachers.map(teacher => `<option value="${teacher.id}" ${item && item.teacherId === teacher.id ? 'selected' : ''}>${teacher.fullName}</option>`).join('')}
+                    </select>
+                </div>
+                ${action !== 'view' ? `
+                    <div class="flex justify-end gap-2">
+                        <button type="button" class="px-4 py-2 border rounded">Hủy</button>
+                        <button type="submit" class="px-4 py-2 bg-blue-500 text-white rounded">Lưu</button>
+                    </div>
+                ` : ''}
+            </form>
         `
     };
 
@@ -638,82 +1156,190 @@ document.addEventListener('DOMContentLoaded', () => {
             addButton.addEventListener('click', () => showModal(section, 'add'));
         }
 
-        // Setup search functionality for teacher tab
-        if (section === 'Giáo viên') {
-            const searchInput = document.getElementById('teacherSearch');
-            const departmentFilter = document.getElementById('departmentFilter');
-            const degreeFilter = document.getElementById('degreeFilter');
-            const searchButton = document.getElementById('searchButton');
+        // Setup statistics filters
+        if (section === 'Thống kê lớp mở') {
+            const academicYearFilter = mainContent.querySelector('#academicYearFilter');
+            const departmentFilter = mainContent.querySelector('#departmentFilter');
+            const applyFilter = mainContent.querySelector('#applyFilter');
+            const exportExcel = mainContent.querySelector('button:has(i.fa-file-excel)');
+            const exportPDF = mainContent.querySelector('button:has(i.fa-file-pdf)');
 
-            function performTeacherSearch() {
-                const searchTerm = searchInput.value.toLowerCase();
-                const selectedDepartment = departmentFilter.value;
-                const selectedDegree = degreeFilter.value;
-                const rows = mainContent.querySelectorAll('tbody tr');
+            // Function to calculate statistics
+            function calculateStatistics() {
+                const selectedYear = academicYearFilter.value;
+                const selectedDept = departmentFilter.value;
 
-                rows.forEach(row => {
-                    const name = row.querySelector('td:nth-child(2)').textContent.toLowerCase();
-                    const email = row.querySelector('td:nth-child(4)').textContent.toLowerCase();
-                    const department = row.querySelector('td:nth-child(5)').textContent.toLowerCase();
-                    const degree = row.querySelector('td:nth-child(6)').textContent.toLowerCase();
-                    const departmentId = row.getAttribute('data-department-id');
-                    const degreeId = row.getAttribute('data-degree-id');
+                // Get semesters for selected year
+                const yearSemesters = sampleData.semesters.filter(sem => sem.year === selectedYear);
+                const semesterIds = yearSemesters.map(sem => sem.id);
 
-                    const matchesSearch = searchTerm === '' || 
-                        name.includes(searchTerm) || 
-                        email.includes(searchTerm);
+                // Get class sections for selected year
+                const yearClassSections = sampleData.classSections.filter(cls => 
+                    semesterIds.includes(cls.semesterId)
+                );
+
+                // Group by course
+                const courseStats = {};
+                yearClassSections.forEach(cls => {
+                    const course = sampleData.courses.find(c => c.id === cls.courseId);
+                    if (course) {
+                        if (!courseStats[course.id]) {
+                            courseStats[course.id] = {
+                                course: course,
+                                classCount: 0,
+                                totalStudents: 0
+                            };
+                        }
+                        courseStats[course.id].classCount++;
+                        courseStats[course.id].totalStudents += cls.studentCount || 0;
+                    }
+                });
+
+                // Convert to array and sort by class count
+                const statsArray = Object.values(courseStats).sort((a, b) => b.classCount - a.classCount);
+
+                // Update table
+                const tableBody = mainContent.querySelector('#statisticsTableBody');
+                if (tableBody) {
+                    tableBody.innerHTML = statsArray.map((stat, index) => `
+                        <tr>
+                            <td class="px-6 py-4">${index + 1}</td>
+                            <td class="px-6 py-4">${stat.course.id}</td>
+                            <td class="px-6 py-4">${stat.course.name}</td>
+                            <td class="px-6 py-4">${stat.classCount}</td>
+                            <td class="px-6 py-4">${stat.totalStudents}</td>
+                        </tr>
+                    `).join('');
+                }
+
+                // Update chart (using Chart.js)
+                const chartContainer = mainContent.querySelector('#statisticsChart');
+                if (chartContainer) {
+                    // Get top 5 courses
+                    const topCourses = statsArray.slice(0, 5);
                     
-                    const matchesDepartment = selectedDepartment === '' || 
-                        departmentId === selectedDepartment;
-                    
-                    const matchesDegree = selectedDegree === '' || 
-                        degreeId === selectedDegree;
+                    // Create chart data
+                    const chartData = {
+                        labels: topCourses.map(stat => stat.course.name),
+                        datasets: [{
+                            label: 'Số lớp đã mở',
+                            data: topCourses.map(stat => stat.classCount),
+                            backgroundColor: 'rgba(59, 130, 246, 0.5)',
+                            borderColor: 'rgb(59, 130, 246)',
+                            borderWidth: 1
+                        }]
+                    };
 
-                    row.style.display = matchesSearch && matchesDepartment && matchesDegree ? '' : 'none';
+                    // Create or update chart
+                    if (window.statisticsChart) {
+                        window.statisticsChart.destroy();
+                    }
+                    window.statisticsChart = new Chart(chartContainer, {
+                        type: 'bar',
+                        data: chartData,
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    ticks: {
+                                        stepSize: 1
+                                    }
+                                }
+                            }
+                        }
+                    });
+                }
+            }
+
+            if (applyFilter) {
+                applyFilter.addEventListener('click', calculateStatistics);
+            }
+
+            if (exportExcel) {
+                exportExcel.addEventListener('click', () => {
+                    // TODO: Implement Excel export
+                    showToast('Chức năng xuất Excel đang được phát triển', 'info');
                 });
             }
 
-            searchButton.addEventListener('click', performTeacherSearch);
-            searchInput.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') {
-                    performTeacherSearch();
-                }
+            if (exportPDF) {
+                exportPDF.addEventListener('click', () => {
+                    // TODO: Implement PDF export
+                    showToast('Chức năng xuất PDF đang được phát triển', 'info');
+                });
+            }
+
+            // Add sorting functionality to table headers
+            const tableHeaders = mainContent.querySelectorAll('th');
+            tableHeaders.forEach(header => {
+                header.addEventListener('click', () => {
+                    const column = header.textContent.trim();
+                    const tableBody = mainContent.querySelector('#statisticsTableBody');
+                    const rows = Array.from(tableBody.querySelectorAll('tr'));
+                    
+                    rows.sort((a, b) => {
+                        const aValue = a.children[Array.from(header.parentElement.children).indexOf(header)].textContent;
+                        const bValue = b.children[Array.from(header.parentElement.children).indexOf(header)].textContent;
+                        
+                        if (column === 'STT' || column === 'Số lớp đã mở' || column === 'Tổng số sinh viên') {
+                            return parseInt(aValue) - parseInt(bValue);
+                        }
+                        return aValue.localeCompare(bValue);
+                    });
+                    
+                    tableBody.innerHTML = '';
+                    rows.forEach(row => tableBody.appendChild(row));
+                });
             });
-            departmentFilter.addEventListener('change', performTeacherSearch);
-            degreeFilter.addEventListener('change', performTeacherSearch);
         }
 
-        // Setup view buttons
+        // Setup view/edit/delete for all sections
         const viewButtons = mainContent.querySelectorAll('.view-btn');
         viewButtons.forEach(button => {
             button.addEventListener('click', (e) => {
                 e.preventDefault();
                 const id = button.getAttribute('data-id');
-                const dataKey = section === 'Bằng cấp' ? 'degrees' : 
-                              section === 'Khoa' ? 'departments' : 'teachers';
+                let dataKey;
+                switch (section) {
+                    case 'Bằng cấp': dataKey = 'degrees'; break;
+                    case 'Khoa': dataKey = 'departments'; break;
+                    case 'Giáo viên': dataKey = 'teachers'; break;
+                    case 'Học phần': dataKey = 'courses'; break;
+                    case 'Kì học': dataKey = 'semesters'; break;
+                    case 'Lớp học phần': dataKey = 'classSections'; break;
+                    case 'Phân công giảng viên': dataKey = 'assignments'; break;
+                    default: dataKey = '';
+                }
                 const item = sampleData[dataKey].find(item => item.id === id);
                 if (item) {
                     showModal(section, 'view', item);
                 }
             });
         });
-
-        // Setup edit buttons
         const editButtons = mainContent.querySelectorAll('.edit-btn');
         editButtons.forEach(button => {
             button.addEventListener('click', (e) => {
                 e.preventDefault();
                 const id = button.getAttribute('data-id');
-                const dataKey = section === 'Bằng cấp' ? 'degrees' : 
-                              section === 'Khoa' ? 'departments' : 'teachers';
+                let dataKey;
+                switch (section) {
+                    case 'Bằng cấp': dataKey = 'degrees'; break;
+                    case 'Khoa': dataKey = 'departments'; break;
+                    case 'Giáo viên': dataKey = 'teachers'; break;
+                    case 'Học phần': dataKey = 'courses'; break;
+                    case 'Kì học': dataKey = 'semesters'; break;
+                    case 'Lớp học phần': dataKey = 'classSections'; break;
+                    case 'Phân công giảng viên': dataKey = 'assignments'; break;
+                    default: dataKey = '';
+                }
                 const item = sampleData[dataKey].find(item => item.id === id);
                 if (item) {
                     showModal(section, 'edit', item);
                 }
             });
         });
-
-        // Setup delete buttons
         const deleteButtons = mainContent.querySelectorAll('.delete-btn');
         deleteButtons.forEach(button => {
             button.addEventListener('click', (e) => {
@@ -724,10 +1350,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
         });
-
+        // Search logic giữ nguyên
         const searchInput = mainContent.querySelector('input[type="text"]');
         const searchButton = mainContent.querySelector('button:has(i.fa-search)');
-        
         if (searchInput && searchButton) {
             searchButton.addEventListener('click', () => performSearch(searchInput));
             searchInput.addEventListener('keypress', (e) => {
@@ -739,8 +1364,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function deleteItem(section, id) {
-        const dataKey = section === 'Bằng cấp' ? 'degrees' : 
-                       section === 'Khoa' ? 'departments' : 'teachers';
+        let dataKey;
+        switch (section) {
+            case 'Bằng cấp': dataKey = 'degrees'; break;
+            case 'Khoa': dataKey = 'departments'; break;
+            case 'Giáo viên': dataKey = 'teachers'; break;
+            case 'Học phần': dataKey = 'courses'; break;
+            case 'Kì học': dataKey = 'semesters'; break;
+            case 'Lớp học phần': dataKey = 'classSections'; break;
+            case 'Phân công giảng viên': dataKey = 'assignments'; break;
+            default: dataKey = '';
+        }
         const index = sampleData[dataKey].findIndex(item => item.id === id);
         if (index !== -1) {
             sampleData[dataKey].splice(index, 1);
