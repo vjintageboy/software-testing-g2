@@ -108,17 +108,39 @@ document.addEventListener('DOMContentLoaded', () => {
         return `${prefix}${String(maxId + 1).padStart(3, '0')}`;
     }
 
+    const BASE_RANGE_COEFFICIENTS = {
+        'RANGE_LT_20': -0.3, // Dưới 20 SV
+        'RANGE_20_29': -0.2, // 20-29 SV
+        'RANGE_30_39': -0.1, // 30-39 SV
+        'RANGE_40_49': 0.0,  // 40-49 SV
+        'RANGE_50_59': 0.1,  // 50-59 SV
+        'RANGE_60_69': 0.2,  // 60-69 SV
+        'RANGE_70_79': 0.3,  // 70-79 SV
+        'RANGE_GE_80': 0.4   // Từ 80 SV trở lên
+    };
+    
+    // Hàm để xác định khóa của khoảng sinh viên dựa trên số lượng
+    function getStudentRangeKey(studentCount) {
+        if (studentCount < 20) return 'RANGE_LT_20';
+        if (studentCount <= 29) return 'RANGE_20_29';
+        if (studentCount <= 39) return 'RANGE_30_39';
+        if (studentCount <= 49) return 'RANGE_40_49';
+        if (studentCount <= 59) return 'RANGE_50_59';
+        if (studentCount <= 69) return 'RANGE_60_69';
+        if (studentCount <= 79) return 'RANGE_70_79';
+        return 'RANGE_GE_80';
+    }
+
     // Calculate class coefficient based on student count
-    function calculateClassCoefficient(studentCountInput) {
-        const studentCount = Number(studentCountInput) || 0; // Ensure studentCount is a number, default to 0
-        if (studentCount < 20) return -0.3;
-        if (studentCount <= 29) return -0.2; // Covers 20-29
-        if (studentCount <= 39) return -0.1; // Covers 30-39
-        // For studentCount >= 40
-        // Base coefficient is 0 for 40-49 students.
-        // For every 10 students from 40 upwards, coefficient increases by 0.1.
-        const coefficient = Math.floor((studentCount - 40) / 10) * 0.1;
-        return parseFloat(coefficient.toFixed(1)); // Ensure one decimal place and numeric type
+    function calculateClassCoefficient(studentCountInput, selectedStandardRangeKey = 'RANGE_40_49') {
+        const studentCountNum = Number(studentCountInput) || 0;
+        const currentStudentRangeKey = getStudentRangeKey(studentCountNum);
+        
+        const baseCoefficientForCurrentRange = BASE_RANGE_COEFFICIENTS[currentStudentRangeKey];
+        const baseCoefficientForStandardRange = BASE_RANGE_COEFFICIENTS[selectedStandardRangeKey];
+        
+        const relativeCoefficient = baseCoefficientForCurrentRange - baseCoefficientForStandardRange;
+        return parseFloat(relativeCoefficient.toFixed(1));
     }
 
     // Modal handling
@@ -684,18 +706,27 @@ document.addEventListener('DOMContentLoaded', () => {
             <div class="bg-white p-4 rounded-lg shadow-md mb-6">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Năm học</label>
-                        <select id="academicYearSelect" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:border-blue-500">
-                            <option value="">Chọn năm học</option>
-                            ${[...new Set(sampleData.semesters.map(sem => sem.year))].map(year => `
-                                <option value="${year}">${year}</option>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Năm học - Kì học</label>
+                        <select id="semesterSelect" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:border-blue-500">
+                            <option value="">Chọn năm học - kì học</option>
+                            ${sampleData.semesters.map(sem => `
+                                <option value="${sem.id}">${sem.name} - ${sem.year}</option>
                             `).join('')}
                         </select>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Kì học</label>
-                        <select id="semesterSelect" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:border-blue-500" disabled>
-                            <option value="">Chọn kì học</option>
+                        <label for="standardCoefficientRangeSelect" class="block text-sm font-medium text-gray-700 mb-2">
+                            Chọn khoảng SV chuẩn (Hệ số = 0)
+                        </label>
+                        <select id="standardCoefficientRangeSelect" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:border-blue-500">
+                            <option value="RANGE_LT_20">Dưới 20 SV</option>
+                            <option value="RANGE_20_29">20-29 SV</option>
+                            <option value="RANGE_30_39">30-39 SV</option>
+                            <option value="RANGE_40_49" selected>40-49 SV (Mặc định)</option>
+                            <option value="RANGE_50_59">50-59 SV</option>
+                            <option value="RANGE_60_69">60-69 SV</option>
+                            <option value="RANGE_70_79">70-79 SV</option>
+                            <option value="RANGE_GE_80">Từ 80 SV trở lên</option>
                         </select>
                     </div>
                 </div>
@@ -771,14 +802,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     <i class="fas fa-plus mr-2"></i>Thêm mới
                 </button>
             </div>
+            <!-- Filters -->
             <div class="bg-white p-4 rounded-lg shadow-md mb-6">
-                <div class="flex gap-4">
-                    <div class="flex-1">
-                        <input type="text" placeholder="Tìm kiếm..." class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:border-blue-500">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Năm học - Kì học</label>
+                        <select id="assignmentSemesterFilter" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:border-blue-500">
+                            <option value="">Chọn năm học - kì học</option>
+                            ${sampleData.semesters.map(sem => `
+                                <option value="${sem.id}">${sem.name} - ${sem.year}</option>
+                            `).join('')}
+                        </select>
                     </div>
-                    <button class="bg-gray-100 px-4 py-2 rounded">
-                        <i class="fas fa-search"></i>
-                    </button>
+                    <!-- Search input can be added here if needed -->
                 </div>
             </div>
             <div class="bg-white rounded-lg shadow-md overflow-hidden">
@@ -790,22 +826,8 @@ document.addEventListener('DOMContentLoaded', () => {
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hành động</th>
                         </tr>
                     </thead>
-                    <tbody class="bg-white divide-y divide-gray-200">
-                        ${sampleData.assignments.map(assign => {
-                            const cls = sampleData.classSections.find(c => c.id === assign.classSectionId);
-                            const teacher = sampleData.teachers.find(t => t.id === assign.teacherId);
-                            return `
-                                <tr>
-                                    <td class="px-6 py-4">${cls ? cls.name : ''}</td>
-                                    <td class="px-6 py-4">${teacher ? teacher.fullName : ''}</td>
-                                    <td class="px-6 py-4">
-                                        <button type="button" class="view-btn text-blue-500 mr-3" data-id="${assign.id}"><i class="fas fa-eye"></i></button>
-                                        <button type="button" class="edit-btn text-blue-500 mr-3" data-id="${assign.id}"><i class="fas fa-edit"></i></button>
-                                        <button type="button" class="delete-btn text-red-500" data-id="${assign.id}"><i class="fas fa-trash"></i></button>
-                                    </td>
-                                </tr>
-                            `;
-                        }).join('')}
+                    <tbody class="bg-white divide-y divide-gray-200" id="assignmentTableBody">
+                        <tr><td colspan="3" class="text-center py-4">Vui lòng chọn năm học - kì học để xem danh sách.</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -1183,16 +1205,42 @@ document.addEventListener('DOMContentLoaded', () => {
             <form>
                 <div class="mb-4">
                     <label class="block text-gray-700 text-sm font-bold mb-2">Lớp học phần <span class="text-red-500">*</span></label>
-                    <select name="classSectionId" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500" ${action === 'view' ? 'disabled' : 'required'}>
+                    <select name="classSectionId" 
+                            class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500" 
+                            ${action === 'view' ? 'disabled' : 'required'}>
                         <option value="">Chọn lớp học phần</option>
-                        ${sampleData.classSections.map(cls => `<option value="${cls.id}" ${item && item.classSectionId === cls.id ? 'selected' : ''}>${cls.name}</option>`).join('')}
+                        ${(() => {
+                            let classSectionsForModal = sampleData.classSections;
+                            // If adding and a semester is pre-selected from the main page filter
+                            if (action === 'add' && item && item.preselectedSemesterId) {
+                                classSectionsForModal = sampleData.classSections.filter(cls => cls.semesterId === item.preselectedSemesterId);
+                            } 
+                            // If editing or viewing, filter classes by the semester of the currently assigned class section
+                            else if ((action === 'edit' || action === 'view') && item && item.classSectionId) {
+                                const currentAssignedClass = sampleData.classSections.find(cls => cls.id === item.classSectionId);
+                                if (currentAssignedClass) {
+                                    classSectionsForModal = sampleData.classSections.filter(clsInSem => clsInSem.semesterId === currentAssignedClass.semesterId);
+                                }
+                            }
+                            // Otherwise, for 'add' without preselection, show all (or could be empty if no preselection is desired behavior)
+
+                            return classSectionsForModal.map(cls => {
+                                const semester = sampleData.semesters.find(s => s.id === cls.semesterId);
+                                const course = sampleData.courses.find(c => c.id === cls.courseId);
+                                const displayText = `${cls.name} (${course ? course.name : 'N/A'}) - ${semester ? semester.name + ' ' + semester.year : 'N/A'}`;
+                                return `<option value="${cls.id}" ${item && item.classSectionId === cls.id ? 'selected' : ''}>${displayText}</option>`;
+                            }).join('');
+                        })()}
                     </select>
                 </div>
                 <div class="mb-4">
                     <label class="block text-gray-700 text-sm font-bold mb-2">Giảng viên <span class="text-red-500">*</span></label>
                     <select name="teacherId" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500" ${action === 'view' ? 'disabled' : 'required'}>
                         <option value="">Chọn giảng viên</option>
-                        ${sampleData.teachers.map(teacher => `<option value="${teacher.id}" ${item && item.teacherId === teacher.id ? 'selected' : ''}>${teacher.fullName}</option>`).join('')}
+                        ${sampleData.teachers.map(teacher => {
+                            const dept = sampleData.departments.find(d => d.id === teacher.departmentId);
+                            return `<option value="${teacher.id}" ${item && item.teacherId === teacher.id ? 'selected' : ''}>${teacher.fullName} (${dept ? dept.shortName : 'N/A'})</option>`;
+                        }).join('')}
                     </select>
                 </div>
                 ${action !== 'view' ? `
@@ -1419,6 +1467,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const searchButton = mainContent.querySelector('button:has(i.fa-search)');
         if (searchInput && searchButton) {
             searchButton.addEventListener('click', () => performSearch(searchInput));
+            // TODO: Consider how search interacts with filters in sections like "Phân công giảng viên"
             searchInput.addEventListener('keypress', (e) => {
                 if (e.key === 'Enter') {
                     performSearch(searchInput);
@@ -1427,28 +1476,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (section === 'Lớp học phần') {
-            const academicYearSelect = mainContent.querySelector('#academicYearSelect');
+            // const academicYearSelect = mainContent.querySelector('#academicYearSelect'); // No longer needed
             const semesterSelect = mainContent.querySelector('#semesterSelect');
             const courseListBody = mainContent.querySelector('#courseListBody');
+            const standardCoefficientRangeSelect = mainContent.querySelector('#standardCoefficientRangeSelect');
             const createdClassesBody = mainContent.querySelector('#createdClassesBody');
-
-            // Update semester options when year changes
-            academicYearSelect.addEventListener('change', () => {
-                const selectedYear = academicYearSelect.value;
-                semesterSelect.disabled = !selectedYear;
-                
-                if (selectedYear) {
-                    const yearSemesters = sampleData.semesters.filter(sem => sem.year === selectedYear);
-                    semesterSelect.innerHTML = `
-                        <option value="">Chọn kì học</option>
-                        ${yearSemesters.map(sem => `
-                            <option value="${sem.id}">${sem.name}</option>
-                        `).join('')}
-                    `;
-                } else {
-                    semesterSelect.innerHTML = '<option value="">Chọn kì học</option>';
-                }
-            });
 
             // Handle class creation
             courseListBody.addEventListener('click', (e) => {
@@ -1462,13 +1494,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     const studentCount = parseInt(studentCountInput.value) || 0;
                     
                     if (!classCount || !studentCount) {
-                        alert('Vui lòng nhập số lớp và số sinh viên');
+                        showToast('Vui lòng nhập số lớp và số sinh viên', 'error');
                         return;
                     }
 
                     const selectedSemester = semesterSelect.value;
                     if (!selectedSemester) {
-                        alert('Vui lòng chọn kì học');
+                        showToast('Vui lòng chọn năm học - kì học', 'error');
                         return;
                     }
 
@@ -1492,6 +1524,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Update created classes list
                     updateCreatedClassesList();
                     
+                    showToast(`Đã tạo ${classCount} lớp cho học phần ${course.name}`, 'success');
                     // Clear inputs
                     classCountInput.value = '';
                     studentCountInput.value = '';
@@ -1500,13 +1533,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
             function updateCreatedClassesList() {
                 const selectedSemester = semesterSelect.value;
-                if (!selectedSemester) return;
+                // If no semester is selected (e.g., placeholder "Chọn năm học - kì học"), clear the list.
+                if (!selectedSemester) {
+                    if (createdClassesBody) {
+                        createdClassesBody.innerHTML = '';
+                    }
+                    return;
+                }
 
                 const semesterClasses = sampleData.classSections.filter(cls => cls.semesterId === selectedSemester);
+                const selectedStandardKey = standardCoefficientRangeSelect.value;
                 
                 createdClassesBody.innerHTML = semesterClasses.map(cls => {
                     const course = sampleData.courses.find(c => c.id === cls.courseId);
-                    const classCoefficient = calculateClassCoefficient(cls.studentCount);
+                    const classCoefficient = calculateClassCoefficient(cls.studentCount, selectedStandardKey);
                     
                     return `
                         <tr>
@@ -1516,7 +1556,13 @@ document.addEventListener('DOMContentLoaded', () => {
                             <td class="px-6 py-4">${cls.studentCount}</td>
                             <td class="px-6 py-4">${classCoefficient.toFixed(1)}</td>
                             <td class="px-6 py-4">
-                                <button class="text-red-500 hover:text-red-700 delete-class-btn" data-id="${cls.id}">
+                                <button type="button" class="view-btn text-blue-500 hover:text-blue-700 mr-3" data-id="${cls.id}">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                                <button type="button" class="edit-btn text-blue-500 hover:text-blue-700 mr-3" data-id="${cls.id}">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button type="button" class="text-red-500 hover:text-red-700 delete-class-btn" data-id="${cls.id}">
                                     <i class="fas fa-trash"></i>
                                 </button>
                             </td>
@@ -1532,15 +1578,117 @@ document.addEventListener('DOMContentLoaded', () => {
                             const index = sampleData.classSections.findIndex(c => c.id === classId);
                             if (index !== -1) {
                                 sampleData.classSections.splice(index, 1);
+                                showToast('Đã xóa lớp học phần', 'success');
                                 updateCreatedClassesList();
                             }
                         }
                     });
                 });
+
+                // Add view event listeners for created classes
+                createdClassesBody.querySelectorAll('.view-btn').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const classId = btn.dataset.id;
+                        const item = sampleData.classSections.find(c => c.id === classId);
+                        if (item) {
+                            showModal('Lớp học phần', 'view', item);
+                        }
+                    });
+                });
+
+                // Add edit event listeners for created classes
+                createdClassesBody.querySelectorAll('.edit-btn').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const classId = btn.dataset.id;
+                        const item = sampleData.classSections.find(c => c.id === classId);
+                        if (item) {
+                            showModal('Lớp học phần', 'edit', item);
+                        }
+                    });
+                });
+
+                // Add delete event listeners (already exists, keeping for context)
+                // createdClassesBody.querySelectorAll('.delete-class-btn').forEach(btn => {
+                //     btn.addEventListener('click', () => {
+                //         ... delete logic ...
+                //     });
+                // });
             }
 
             // Update created classes list when semester changes
             semesterSelect.addEventListener('change', updateCreatedClassesList);
+            if (standardCoefficientRangeSelect) {
+                standardCoefficientRangeSelect.addEventListener('change', updateCreatedClassesList);
+            }
+
+            // Initial call to populate if a semester is somehow pre-selected (e.g. browser back)
+            // or to ensure the list is correctly empty if no semester is selected.
+            updateCreatedClassesList();
+        }
+
+        if (section === 'Phân công giảng viên') {
+            const semesterFilter = mainContent.querySelector('#assignmentSemesterFilter');
+            const tableBody = mainContent.querySelector('#assignmentTableBody');
+            const sectionAddButton = mainContent.querySelector('h2 + button.bg-blue-500'); // More specific selector for the section's add button
+
+            function renderFilteredAssignments(selectedSemesterId) {
+                if (!selectedSemesterId) {
+                    tableBody.innerHTML = '<tr><td colspan="3" class="text-center py-4">Vui lòng chọn năm học - kì học để xem danh sách.</td></tr>';
+                    return;
+                }
+
+                const semesterClassSections = sampleData.classSections.filter(cls => cls.semesterId === selectedSemesterId);
+                const semesterClassSectionIds = semesterClassSections.map(cls => cls.id);
+                
+                const filteredAssignments = sampleData.assignments.filter(assign => 
+                    semesterClassSectionIds.includes(assign.classSectionId)
+                );
+
+                if (filteredAssignments.length === 0) {
+                    tableBody.innerHTML = '<tr><td colspan="3" class="text-center py-4">Không có phân công nào cho kì học này.</td></tr>';
+                    return;
+                }
+
+                tableBody.innerHTML = filteredAssignments.map(assign => {
+                    const cls = sampleData.classSections.find(c => c.id === assign.classSectionId);
+                    const teacher = sampleData.teachers.find(t => t.id === assign.teacherId);
+                    const course = cls ? sampleData.courses.find(co => co.id === cls.courseId) : null;
+                    return `
+                        <tr>
+                            <td class="px-6 py-4">${cls ? cls.name : 'N/A'} ${course ? '('+course.name+')' : ''}</td>
+                            <td class="px-6 py-4">${teacher ? teacher.fullName : 'N/A'}</td>
+                            <td class="px-6 py-4">
+                                <button type="button" class="view-btn text-blue-500 hover:text-blue-700 mr-3" data-id="${assign.id}"><i class="fas fa-eye"></i></button>
+                                <button type="button" class="edit-btn text-blue-500 hover:text-blue-700 mr-3" data-id="${assign.id}"><i class="fas fa-edit"></i></button>
+                                <button type="button" class="delete-btn text-red-500 hover:text-red-700" data-id="${assign.id}"><i class="fas fa-trash"></i></button>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+
+                // Re-attach event listeners for the newly created buttons
+                // This reuses the global setup logic by re-querying within the tableBody
+                // Note: This is a simplified approach. For larger apps, event delegation is better.
+                setupActionButtonsForTable(tableBody, 'Phân công giảng viên', 'assignments', () => renderFilteredAssignments(selectedSemesterId));
+            }
+
+            if (semesterFilter) {
+                semesterFilter.addEventListener('change', (e) => {
+                    renderFilteredAssignments(e.target.value);
+                });
+                // Initial render based on current filter value (likely empty)
+                renderFilteredAssignments(semesterFilter.value);
+            }
+
+            if (sectionAddButton) {
+                sectionAddButton.addEventListener('click', () => {
+                    const selectedSemesterOnPage = semesterFilter ? semesterFilter.value : null;
+                    showModal('Phân công giảng viên', 'add', selectedSemesterOnPage ? { preselectedSemesterId: selectedSemesterOnPage } : null);
+                });
+            }
+             // Ensure search input is handled if it exists for this section
+            const searchInputInAssignments = mainContent.querySelector('input[placeholder="Tìm kiếm..."]'); // If you add search
+            // ... setup search for assignments if added ...
         }
     }
 
@@ -1562,6 +1710,42 @@ document.addEventListener('DOMContentLoaded', () => {
             showToast('Xóa thành công!', 'success');
             switchContent(section);
         }
+    }
+
+    // Helper to set up action buttons for a specific table body, with a custom refresh for delete
+    function setupActionButtonsForTable(tableBodyElement, sectionName, dataKey, deleteRefreshCallback) {
+        tableBodyElement.querySelectorAll('.view-btn').forEach(button => {
+            button.addEventListener('click', (e) => {
+                e.preventDefault();
+                const id = button.getAttribute('data-id');
+                const item = sampleData[dataKey].find(i => i.id === id);
+                if (item) showModal(sectionName, 'view', item);
+            });
+        });
+        tableBodyElement.querySelectorAll('.edit-btn').forEach(button => {
+            button.addEventListener('click', (e) => {
+                e.preventDefault();
+                const id = button.getAttribute('data-id');
+                const item = sampleData[dataKey].find(i => i.id === id);
+                if (item) showModal(sectionName, 'edit', item);
+            });
+        });
+        tableBodyElement.querySelectorAll('.delete-btn').forEach(button => {
+            button.addEventListener('click', (e) => {
+                e.preventDefault();
+                const id = button.getAttribute('data-id');
+                if (confirm('Bạn có chắc chắn muốn xóa mục này?')) {
+                    // Call the main deleteItem, but provide our custom refresh
+                    const index = sampleData[dataKey].findIndex(item => item.id === id);
+                    if (index !== -1) {
+                        sampleData[dataKey].splice(index, 1);
+                        showToast('Xóa thành công!', 'success');
+                        if (deleteRefreshCallback) deleteRefreshCallback();
+                        else switchContent(sectionName); // Fallback
+                    }
+                }
+            });
+        });
     }
 
     function performSearch(input) {
