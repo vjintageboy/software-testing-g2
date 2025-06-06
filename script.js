@@ -143,6 +143,20 @@ document.addEventListener('DOMContentLoaded', () => {
         return parseFloat(relativeCoefficient.toFixed(1));
     }
 
+    // Hệ số giáo viên theo bằng cấp
+    const TEACHER_DEGREE_COEFFICIENTS = {
+        'DEG001': 1.7, // Tiến sĩ
+        'DEG002': 1.5, // Thạc sĩ
+        'DEG003': 1.3, // Cử nhân
+        'DEG004': 2.0, // Phó giáo sư
+        'DEG005': 2.5  // Giáo sư
+    };
+
+    // Hàm tính hệ số giáo viên dựa trên bằng cấp
+    function calculateTeacherCoefficient(degreeId) {
+        return TEACHER_DEGREE_COEFFICIENTS[degreeId] || 1.0;
+    }
+
     // Modal handling
     const modal = document.getElementById('modal');
     const modalContent = modal.querySelector('.bg-white');
@@ -394,12 +408,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 <table class="min-w-full">
                     <thead class="bg-gray-50">
                         <tr>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mã</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Họ tên</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mã GV</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Họ và tên</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ngày sinh</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Khoa</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bằng cấp</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hệ số</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hành động</th>
                         </tr>
                     </thead>
@@ -407,6 +422,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         ${sampleData.teachers.map((teacher, index) => {
                             const dept = sampleData.departments.find(d => d.id === teacher.departmentId);
                             const degree = sampleData.degrees.find(d => d.id === teacher.degreeId);
+                            const teacherCoefficient = calculateTeacherCoefficient(teacher.degreeId);
                             return `
                                 <tr data-department-id="${teacher.departmentId}" data-degree-id="${teacher.degreeId}">
                                     <td class="px-6 py-4 whitespace-nowrap">${teacher.id}</td>
@@ -415,6 +431,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                     <td class="px-6 py-4">${teacher.email}</td>
                                     <td class="px-6 py-4">${dept ? dept.fullName : ''}</td>
                                     <td class="px-6 py-4">${degree ? degree.fullName : ''}</td>
+                                    <td class="px-6 py-4">${teacherCoefficient.toFixed(1)}</td>
                                     <td class="px-6 py-4">
                                         <button type="button" class="view-btn text-blue-500 mr-3" data-id="${teacher.id}">
                                             <i class="fas fa-eye"></i>
@@ -924,7 +941,65 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                 </div>
             `;
-        }
+        },
+        'Tính tiền': () => `
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold text-gray-800">Tính tiền dạy</h2>
+            </div>
+
+            <!-- Filters -->
+            <div class="bg-white p-4 rounded-lg shadow-md mb-6">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Học kỳ</label>
+                        <select id="salarySemesterFilter" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:border-blue-500">
+                            <option value="">Chọn học kỳ</option>
+                            ${sampleData.semesters.map(semester => `
+                                <option value="${semester.id}">${semester.name} ${semester.year}</option>
+                            `).join('')}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Giảng viên</label>
+                        <select id="salaryTeacherFilter" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:border-blue-500">
+                            <option value="">Chọn giảng viên</option>
+                            ${sampleData.teachers.map(teacher => `
+                                <option value="${teacher.id}">${teacher.fullName}</option>
+                            `).join('')}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Định mức tiền dạy một tiết (VNĐ)</label>
+                        <input type="number" id="baseRateInput" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:border-blue-500" value="150000">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Salary Table -->
+            <div class="bg-white rounded-lg shadow-md overflow-hidden">
+                <table class="min-w-full">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Lớp học phần</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Số tiết</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hệ số học phần</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hệ số lớp</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hệ số GV</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Số tiết quy đổi</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tiền dạy (VNĐ)</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200" id="salaryTableBody">
+                    </tbody>
+                    <tfoot class="bg-gray-50">
+                        <tr>
+                            <td colspan="6" class="px-6 py-4 text-right font-bold">Tổng tiền:</td>
+                            <td class="px-6 py-4 font-bold" id="totalSalary">0 VNĐ</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        `
     };
 
     // Modal templates
@@ -1690,6 +1765,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const searchInputInAssignments = mainContent.querySelector('input[placeholder="Tìm kiếm..."]'); // If you add search
             // ... setup search for assignments if added ...
         }
+
+        if (section === 'Tính tiền') {
+            setupSalaryCalculation();
+        }
     }
 
     function deleteItem(section, id) {
@@ -1804,4 +1883,86 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initialize with default content
     switchContent('Bằng cấp');
+
+    // Hàm tính tiền dạy
+    function calculateTeachingSalary(actualPeriods, courseCoefficient, classCoefficient, teacherCoefficient, baseRate) {
+        // Số tiết quy đổi = Số tiết thực tế * (hệ số học phần + hệ số lớp)
+        const convertedPeriods = actualPeriods * (courseCoefficient + classCoefficient);
+        
+        // Tiền dạy = Số tiết quy đổi * hệ số giáo viên * tiền dạy một tiết
+        const salary = convertedPeriods * teacherCoefficient * baseRate;
+        
+        return {
+            convertedPeriods: parseFloat(convertedPeriods.toFixed(1)),
+            salary: parseFloat(salary.toFixed(0))
+        };
+    }
+
+    // Thêm xử lý cho phần tính tiền dạy
+    function setupSalaryCalculation() {
+        const semesterFilter = document.getElementById('salarySemesterFilter');
+        const teacherFilter = document.getElementById('salaryTeacherFilter');
+        const baseRateInput = document.getElementById('baseRateInput');
+        const salaryTableBody = document.getElementById('salaryTableBody');
+        const totalSalaryElement = document.getElementById('totalSalary');
+
+        function updateSalaryTable() {
+            const selectedSemester = semesterFilter.value;
+            const selectedTeacher = teacherFilter.value;
+            const baseRate = parseFloat(baseRateInput.value) || 150000;
+
+            if (!selectedSemester || !selectedTeacher) {
+                salaryTableBody.innerHTML = '';
+                totalSalaryElement.textContent = '0 VNĐ';
+                return;
+            }
+
+            // Lấy các lớp học phần được phân công cho giảng viên trong học kỳ
+            const assignments = sampleData.assignments.filter(assign => 
+                assign.teacherId === selectedTeacher
+            );
+
+            const classSections = sampleData.classSections.filter(cls => 
+                cls.semesterId === selectedSemester && 
+                assignments.some(assign => assign.classSectionId === cls.id)
+            );
+
+            let totalSalary = 0;
+            salaryTableBody.innerHTML = classSections.map(cls => {
+                const course = sampleData.courses.find(c => c.id === cls.courseId);
+                const teacher = sampleData.teachers.find(t => t.id === selectedTeacher);
+                const classCoefficient = calculateClassCoefficient(cls.studentCount);
+                const teacherCoefficient = calculateTeacherCoefficient(teacher.degreeId);
+                
+                const { convertedPeriods, salary } = calculateTeachingSalary(
+                    course.periods,
+                    course.coefficient,
+                    classCoefficient,
+                    teacherCoefficient,
+                    baseRate
+                );
+
+                totalSalary += salary;
+
+                return `
+                    <tr>
+                        <td class="px-6 py-4">${cls.name} (${course.name})</td>
+                        <td class="px-6 py-4">${course.periods}</td>
+                        <td class="px-6 py-4">${course.coefficient.toFixed(1)}</td>
+                        <td class="px-6 py-4">${classCoefficient.toFixed(1)}</td>
+                        <td class="px-6 py-4">${teacherCoefficient.toFixed(1)}</td>
+                        <td class="px-6 py-4">${convertedPeriods}</td>
+                        <td class="px-6 py-4">${salary.toLocaleString('vi-VN')} VNĐ</td>
+                    </tr>
+                `;
+            }).join('');
+
+            totalSalaryElement.textContent = `${totalSalary.toLocaleString('vi-VN')} VNĐ`;
+        }
+
+        // Thêm event listeners
+        semesterFilter.addEventListener('change', updateSalaryTable);
+        teacherFilter.addEventListener('change', updateSalaryTable);
+        baseRateInput.addEventListener('input', updateSalaryTable);
+    }
 });
